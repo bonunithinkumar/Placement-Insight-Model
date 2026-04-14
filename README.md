@@ -1,6 +1,6 @@
 # 🎓 Placement Insight — AI-Powered Student Placement Predictor
 
-> A machine learning web application that predicts whether a student will be placed based on 8 academic and extracurricular indicators. Built with **Flask**, **scikit-learn**, and deployed live on **Render**.
+> A machine learning web application that predicts whether a student will be placed based on **8 academic and behavioral indicators**. Trained on **10,000 student records**, built with **Flask** and **scikit-learn**, and deployed live on **Render**.
 
 ---
 
@@ -12,20 +12,20 @@
 
 ## 📌 Project Overview
 
-**Placement Insight** is a full-stack machine learning application that takes a student's academic profile as input and predicts their placement likelihood (`Placed` / `Not Placed`). The model was trained on a real-world-style dataset containing student metrics, then serialized and served via a Flask API with a responsive frontend UI.
+**Placement Insight** is a full-stack machine learning application that takes a student's academic profile as input and predicts their placement likelihood (`Placed` / `Not Placed`). Two models were trained and evaluated — **Logistic Regression** (89.07% accuracy) and **Decision Tree** (100% accuracy — flagged as overfitting). The Logistic Regression model was chosen for production deployment, serialized as `model.pkl`, and served via a Flask API.
 
 ---
 
 ## 🧠 How It Works
 
 ```
-User Input (8 features)
+User Input (8 features via web form)
         ↓
 Flask Backend (/predict route)
         ↓
-numpy array formed from form data
+numpy array of shape (1, 8) formed from form data
         ↓
-Loaded scikit-learn model (model.pkl) makes prediction
+Loaded scikit-learn Logistic Regression model (model.pkl) makes prediction
         ↓
 Result rendered back to index.html via Jinja2 template
 ```
@@ -37,41 +37,102 @@ Result rendered back to index.html via Jinja2 template
 ```
 Render-ML/
 │
-├── app.py                  # Flask application — routes: / and /predict
-├── model.pkl               # Trained and serialized ML model (scikit-learn)
-├── requirements.txt        # Python dependencies (Flask, gunicorn, scikit-learn, numpy, pandas)
+├── app.py                        # Flask application — routes: / and /predict
+├── model.pkl                     # Trained & serialized Logistic Regression model
+├── Placement_prediction.ipynb    # Full ML notebook: EDA → training → evaluation
+├── requirements.txt              # Python dependencies
 │
 ├── templates/
-│   └── index.html          # Responsive frontend UI with Jinja2 templating
+│   └── index.html                # Responsive frontend UI with Jinja2 templating
 │
 └── .gitignore
 ```
 
 ---
 
+## 🔢 Dataset
+
+| Property | Value |
+|---|---|
+| **Source file** | `CollegePlacement.csv` |
+| **Total rows** | 10,000 |
+| **Total columns** | 10 |
+| **Null values** | None |
+| **Train set** | 7,000 rows (70%) |
+| **Test set** | 3,000 rows (30%) |
+| **random_state** | 42 |
+
+---
+
 ## 🔢 Input Features
 
-The model takes **8 student metrics** as input:
+The model takes **8 student metrics** as input (after dropping `College_ID`):
 
-| Feature | Description | Example |
+| Feature | Description | Type | Range |
+|---|---|---|---|
+| `IQ` | Intelligence Quotient score | Integer | 41–158 |
+| `Prev_Sem_Result` | Previous semester GPA/score | Float | 5.0–10.0 |
+| `CGPA` | Cumulative Grade Point Average | Float | 4.54–10.46 |
+| `Academic_Performance` | Overall academic performance rating | Integer (1–10) | 1–10 |
+| `Internship_Experience` | Has internship? (0 = No, 1 = Yes) | Binary | 0 or 1 |
+| `Extra_Curricular_Score` | Score representing extracurricular participation | Integer (0–10) | 0–10 |
+| `Communication_Skills` | Communication skills score | Integer (1–10) | 1–10 |
+| `Projects_Completed` | Number of academic/personal projects | Integer (0–5) | 0–5 |
+
+---
+
+## ⚙️ ML Pipeline
+
+### 1. Preprocessing
+- Copied dataset (`data_cp = data.copy()`)
+- Applied **`LabelEncoder`** to:
+  - `Internship_Experience` (No → 0, Yes → 1)
+  - `Placement` (No → 0, Yes → 1)
+- Dropped `College_ID` (non-predictive identifier)
+- Verified zero null values across all columns
+
+### 2. EDA
+- Inspected dataset shape: `(10000, 10)`
+- Visualized outliers using **seaborn boxplot** — IQ column contains outliers
+
+### 3. Models Trained
+
+| Model | Test Accuracy | Notes |
 |---|---|---|
-| `IQ` | Intelligence Quotient score | 110 |
-| `Prev_Sem_Result` | Previous semester GPA/score | 7.91 |
-| `CGPA` | Cumulative Grade Point Average | 8.5 |
-| `Academic_Performance` | Overall academic performance rating | 9 |
-| `Internship_Experience` | Has internship? (0 = No, 1 = Yes) | 1 |
-| `Extra_Curricular_Score` | Score representing activity participation | 5 |
-| `Communication_Skills` | Communication skills score | 10 |
-| `Projects_Completed` | Number of academic/personal projects | 4 |
+| **Logistic Regression** | **89.07%** | Selected for deployment; ConvergenceWarning observed |
+| Decision Tree | 100.00% | Overfitting — perfect confusion matrix, not deployed |
+
+### 4. Logistic Regression — Detailed Evaluation
+
+**Confusion Matrix:**
+```
+Actual \ Predicted |  0   |  1
+-------------------|------|-----
+         0         | 2396 | 115
+         1         |  213 | 276
+```
+
+**Classification Report:**
+```
+              precision    recall  f1-score   support
+           0       0.92      0.95      0.94      2511
+           1       0.71      0.56      0.63       489
+    accuracy                           0.89      3000
+   macro avg       0.81      0.76      0.78      3000
+weighted avg       0.88      0.89      0.89      3000
+```
+
+> **Note on class imbalance:** ~83.7% of students were Not Placed vs 16.3% Placed. This causes lower recall (0.56) for the "Placed" class.
 
 ---
 
 ## 🤖 ML Model
 
-- **Algorithm:** Trained using `scikit-learn` (classification model)
+- **Algorithm:** `LogisticRegression()` from scikit-learn
 - **Serialization:** Saved using Python `pickle` as `model.pkl`
 - **Prediction Output:** Binary — `Placed` (1) or `Not Placed` (0)
-- **Input:** `numpy` array of 8 features from form submission
+- **Input:** `numpy` array of shape `(1, 8)` from form submission
+- **Known Issue:** ConvergenceWarning — lbfgs solver did not fully converge. Fix: increase `max_iter` or scale features with `StandardScaler`.
 
 ---
 
@@ -80,8 +141,9 @@ The model takes **8 student metrics** as input:
 | Layer | Technology |
 |---|---|
 | **Backend** | Python, Flask |
-| **ML** | scikit-learn, numpy, pandas |
-| **Frontend** | HTML5, CSS3 (inline), Jinja2 templating, Font Awesome |
+| **ML** | scikit-learn (LogisticRegression, DecisionTreeClassifier, LabelEncoder), numpy, pandas |
+| **EDA / Visualization** | matplotlib, seaborn |
+| **Frontend** | HTML5, CSS3, Jinja2 templating |
 | **Server** | Gunicorn (production WSGI server) |
 | **Deployment** | Render (cloud platform) |
 
@@ -91,7 +153,7 @@ The model takes **8 student metrics** as input:
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/your-username/Render-ML.git
+git clone https://github.com/bonunithinkumar/Render-ML.git
 cd Render-ML
 ```
 
@@ -134,26 +196,30 @@ This app is deployed on [Render](https://render.com) using the following configu
 | Method | Route | Description |
 |---|---|---|
 | `GET` | `/` | Renders the home page with the prediction form |
-| `POST` | `/predict` | Accepts form data, runs ML model, returns prediction |
+| `POST` | `/predict` | Accepts 8 form fields, runs Logistic Regression model, returns prediction |
 
 ---
 
 ## 📊 Key Design Decisions
 
-- **`os.path` for model loading** — Ensures the `model.pkl` path resolves correctly regardless of where the app is run from, critical for cloud deployment.
-- **Jinja2 conditional rendering** — The prediction result and status badge are conditionally rendered using `{% if prediction_text %}`, ensuring a clean UI on first load.
-- **Gunicorn in requirements** — Production-grade WSGI server explicitly pinned for Render compatibility.
+- **Two models trained, one deployed** — Trained both Logistic Regression and Decision Tree. Decision Tree hit 100% accuracy (overfitting), so Logistic Regression (89.07%) was chosen for production.
+- **`os.path` for model loading** — `os.path.dirname(os.path.abspath(__file__))` ensures `model.pkl` resolves correctly regardless of where the app is run from — critical for cloud deployment.
+- **LabelEncoder for categorical columns** — `Internship_Experience` (Yes/No) and `Placement` (Yes/No) were encoded to 0/1 before training.
+- **Jinja2 conditional rendering** — Prediction result is conditionally rendered using `{% if prediction_text %}`, ensuring a clean UI on first load.
+- **Gunicorn in requirements** — Production-grade WSGI server explicitly included for Render compatibility.
 
 ---
 
 ## 🔮 Future Improvements
 
-- [ ] Add model accuracy/confidence score to the prediction output
-- [ ] Integrate a proper dataset with model retraining pipeline
-- [ ] Add input validation with user-friendly error messages
+- [ ] Fix Logistic Regression ConvergenceWarning — increase `max_iter` or add `StandardScaler`
+- [ ] Address class imbalance using SMOTE or `class_weight='balanced'`
+- [ ] Add probability score (`.predict_proba()`) to the prediction output
 - [ ] Include model explainability (SHAP values) for each prediction
 - [ ] Switch from pickle to joblib for safer model serialization
+- [ ] Add input validation with user-friendly error messages
 - [ ] Add a REST API endpoint returning JSON (for mobile/API consumers)
+- [ ] Add model retraining pipeline as new placement data becomes available
 
 ---
 
@@ -165,4 +231,4 @@ This app is deployed on [Render](https://render.com) using the following configu
 
 ---
 
-*© 2025 Placement Insight's • Data Intelligence Unit*
+*© 2025 Placement Insight • Data Intelligence Unit*
